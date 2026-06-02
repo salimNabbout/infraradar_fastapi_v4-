@@ -100,18 +100,42 @@ export function getSearchHistory(): SearchHistoryItem[] {
   return searchHistory
 }
 
+// Resposta estruturada que o backend FastAPI devolve a partir da Perplexity.
+export interface PerplexityResult {
+  query: string
+  type: string
+  status: string
+  sources: number
+  summary: string
+  insights: string[]
+  nextSteps: string[]
+  citations: string[]
+  model: string
+}
+
 // POST /api/search/perplexity
-// Na fase futura, o backend Cowork orquestra a busca no Perplexity,
-// consolida fontes, enriquece por IA e retorna insights ao dashboard.
-export async function searchPerplexity(query: string): Promise<NewsSignal[]> {
-  await new Promise((resolve) => setTimeout(resolve, 700))
-  const termo = query.trim().toLowerCase()
-  if (!termo) return []
-  const base = newsSignals.filter(
-    (n) =>
-      n.titulo.toLowerCase().includes(termo) ||
-      n.resumo.toLowerCase().includes(termo) ||
-      n.setor.toLowerCase().includes(termo),
-  )
-  return base.length > 0 ? base : newsSignals.slice(0, 3)
+// Chama o backend real (o nginx encaminha /api para o FastAPI em 127.0.0.1:8000).
+// O backend orquestra a Perplexity, consolida as fontes e devolve insights.
+export async function searchPerplexity(
+  query: string,
+  type = 'Pesquisa livre',
+): Promise<PerplexityResult> {
+  const resp = await fetch('/api/search/perplexity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, type }),
+  })
+
+  if (!resp.ok) {
+    let detail = `Falha na busca (HTTP ${resp.status}).`
+    try {
+      const err = await resp.json()
+      if (err && err.detail) detail = String(err.detail)
+    } catch {
+      // resposta sem corpo JSON
+    }
+    throw new Error(detail)
+  }
+
+  return (await resp.json()) as PerplexityResult
 }

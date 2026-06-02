@@ -1,20 +1,24 @@
 import { useState } from 'react'
-import { Clock, Loader2, Search, Sparkles } from 'lucide-react'
-import { EmptyState } from '../components/EmptyState'
-import { InsightCard } from '../components/InsightCard'
 import {
-  StatusBadge,
-  labelForStatus,
-  toneForStatus,
-} from '../components/StatusBadge'
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+  Lightbulb,
+  ListChecks,
+  Loader2,
+  Search,
+  Sparkles,
+} from 'lucide-react'
+import { InsightCard } from '../components/InsightCard'
 import { getSearchHistory, searchPerplexity } from '../services/api'
+import type { PerplexityResult } from '../services/api'
 import { formatDate } from '../lib/format'
-import type { NewsSignal } from '../types'
 
 export function PerplexitySearch() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<NewsSignal[] | null>(null)
+  const [result, setResult] = useState<PerplexityResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const history = getSearchHistory()
 
   async function runSearch(consulta: string) {
@@ -22,10 +26,16 @@ export function PerplexitySearch() {
     if (!termo) return
     setInput(termo)
     setLoading(true)
-    setResults(null)
-    const res = await searchPerplexity(termo)
-    setResults(res)
-    setLoading(false)
+    setResult(null)
+    setError(null)
+    try {
+      const res = await searchPerplexity(termo)
+      setResult(res)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao consultar a busca.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -33,8 +43,8 @@ export function PerplexitySearch() {
       <div className="rounded-xl border border-tealbrand/20 bg-gradient-to-br from-petroleum/30 to-panel p-5 shadow-executive">
         <div className="mb-3 flex items-center gap-2 text-sm text-slate-300">
           <Sparkles size={16} className="text-tealbrand" />
-          Pesquisa assistida — orquestrada pelo backend Cowork (Perplexity como
-          motor conceitual). Aqui a busca é simulada sobre os sinais mockados.
+          Pesquisa assistida por IA — o backend consulta a Perplexity em fontes
+          atuais da web e devolve um resumo executivo com insights acionáveis.
         </div>
         <form
           onSubmit={(e) => {
@@ -51,7 +61,7 @@ export function PerplexitySearch() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ex.: novos data centers anunciados em São Paulo"
+              placeholder="Ex.: novos data centers anunciados em São Paulo em 2026"
               className="w-full rounded-lg border border-white/10 bg-steel/60 py-2.5 pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:border-tealbrand/60 focus:outline-none"
             />
           </div>
@@ -71,52 +81,125 @@ export function PerplexitySearch() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="space-y-3 lg:col-span-2">
+        <div className="space-y-4 lg:col-span-2">
           {loading && (
             <div className="flex items-center gap-2 rounded-xl border border-white/5 bg-panel p-5 text-sm text-slate-400">
               <Loader2 size={16} className="animate-spin text-tealbrand" />
-              Consolidando fontes e enriquecendo resultados...
+              Consultando a Perplexity, consolidando fontes e enriquecendo os
+              resultados...
             </div>
           )}
 
-          {!loading && results && results.length === 0 && (
-            <EmptyState
-              title="Sem resultados"
-              message="Tente outra consulta ou um termo mais amplo."
-            />
+          {!loading && error && (
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-5">
+              <div className="mb-2 flex items-center gap-2 text-rose-300">
+                <AlertTriangle size={16} />
+                <span className="text-sm font-semibold">Não foi possível buscar</span>
+              </div>
+              <p className="text-sm text-slate-300">{error}</p>
+            </div>
           )}
 
-          {!loading && !results && (
-            <InsightCard title="Como funciona" badge="Conceitual">
-              Digite uma consulta de mercado. Na fase de produção, o backend
-              Cowork aciona o Perplexity, consolida as fontes, enriquece por IA
-              e devolve os insights estruturados para este painel.
+          {!loading && !result && !error && (
+            <InsightCard title="Como funciona" badge="IA">
+              Digite uma consulta de mercado e clique em Buscar. O backend aciona
+              a Perplexity, pesquisa fontes atuais e devolve um resumo executivo,
+              insights acionáveis e próximos passos comerciais para a CETEM.
             </InsightCard>
           )}
 
-          {!loading &&
-            results &&
-            results.map((n) => (
-              <article
-                key={n.id}
-                className="rounded-xl border border-white/5 bg-panel p-5 shadow-executive"
-              >
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <StatusBadge
-                    label={labelForStatus(n.relevancia)}
-                    tone={toneForStatus(n.relevancia)}
-                  />
-                  <span className="text-xs text-slate-400">{n.setor}</span>
-                  <span className="text-xs text-slate-500">
-                    · {n.fonte} · {formatDate(n.data)}
-                  </span>
+          {!loading && result && (
+            <article className="space-y-4 rounded-xl border border-white/5 bg-panel p-5 shadow-executive">
+              <div>
+                <div className="mb-1 flex items-center gap-2">
+                  <Sparkles size={15} className="text-tealbrand" />
+                  <h3 className="text-sm font-semibold text-white">
+                    Resumo executivo
+                  </h3>
                 </div>
-                <h3 className="text-sm font-semibold text-white">{n.titulo}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-slate-400">
-                  {n.resumo}
+                <p className="text-sm leading-relaxed text-slate-300">
+                  {result.summary}
                 </p>
-              </article>
-            ))}
+              </div>
+
+              {result.insights.length > 0 && (
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Lightbulb size={15} className="text-amber-300" />
+                    <h3 className="text-sm font-semibold text-white">Insights</h3>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {result.insights.map((item, i) => (
+                      <li
+                        key={i}
+                        className="flex gap-2 text-sm leading-relaxed text-slate-300"
+                      >
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-tealbrand" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result.nextSteps.length > 0 && (
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <ListChecks size={15} className="text-sky-300" />
+                    <h3 className="text-sm font-semibold text-white">
+                      Próximos passos
+                    </h3>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {result.nextSteps.map((item, i) => (
+                      <li
+                        key={i}
+                        className="flex gap-2 text-sm leading-relaxed text-slate-300"
+                      >
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {result.citations.length > 0 && (
+                <div className="border-t border-white/5 pt-3">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Fontes ({result.citations.length})
+                  </h3>
+                  <ul className="space-y-1">
+                    {result.citations.map((c, i) => {
+                      const isUrl = c.startsWith('http')
+                      return (
+                        <li key={i} className="truncate text-xs">
+                          {isUrl ? (
+                            <a
+                              href={c}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-tealbrand hover:underline"
+                            >
+                              <ExternalLink size={11} className="shrink-0" />
+                              {c}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">{c}</span>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between border-t border-white/5 pt-3 text-xs text-slate-500">
+                <span>{result.status}</span>
+                <span>modelo: {result.model}</span>
+              </div>
+            </article>
+          )}
         </div>
 
         <div className="rounded-xl border border-white/5 bg-panel p-5 shadow-executive">
